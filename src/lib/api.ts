@@ -35,6 +35,9 @@ export interface Product {
   error?: string;
   createdAt: string;
   completedAt?: string;
+  // Regeneration flags
+  skipImageGeneration?: boolean;
+  existingImageUrl?: string;
 }
 
 export interface BatchDetail {
@@ -46,7 +49,14 @@ export interface BatchDetail {
 
 // Start pipeline with product data directly
 export const startPipeline = (
-  products: Array<{ productName: string; imgUrl: string; category: string; price: string }>,
+  products: Array<{ 
+    productName: string; 
+    imgUrl: string; 
+    category: string; 
+    price: string;
+    skipImageGeneration?: boolean;
+    existingImageUrl?: string;
+  }>,
   falApiKey: string,
   imagePrompt?: string,
   videoPrompt?: string,
@@ -92,5 +102,9 @@ export const getDownloadUrls = (
 // Cancel batch
 export const cancelBatch = (batchId: string) =>
   api.post<{ message: string; stoppedCount: number }>(`/batches/${batchId}/cancel`);
+
+// Delete batch
+export const deleteBatch = (batchId: string) =>
+  api.delete<{ message: string }>(`/batches/${batchId}`);
 
 export default api;

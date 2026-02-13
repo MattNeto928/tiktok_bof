@@ -321,27 +321,52 @@ export default function DashboardPage() {
           {batches.map((b) => {
             const info = getStatus(b.status);
             return (
-              <button
+              <div
                 key={b.batchId}
-                onClick={() => fetchBatchDetail(b.batchId)}
-                className="glass-card w-full p-4 text-left transition-all group"
+                className="glass-card w-full p-4 flex items-center justify-between group transition-all"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-[11px] text-dark-400 font-mono shrink-0">
-                      {b.batchId.slice(0, 8)}
-                    </span>
-                    <span className={`badge ${info.cls} shrink-0`}>{info.label}</span>
-                    <span className="text-sm text-slate-400">
-                      {b.totalProducts} product{b.totalProducts !== 1 ? "s" : ""}
-                    </span>
-                    <span className="text-[11px] text-dark-400 hidden sm:inline">
-                      {new Date(b.createdAt).toLocaleString()}
-                    </span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-dark-400 group-hover:text-slate-400 transition-colors shrink-0" />
+                <div 
+                  className="flex items-center gap-3 min-w-0 cursor-pointer flex-1"
+                  onClick={() => fetchBatchDetail(b.batchId)}
+                >
+                  <span className="text-[11px] text-dark-400 font-mono shrink-0">
+                    {b.batchId.slice(0, 8)}
+                  </span>
+                  <span className={`badge ${info.cls} shrink-0`}>{info.label}</span>
+                  <span className="text-sm text-slate-400">
+                    {b.totalProducts} product{b.totalProducts !== 1 ? "s" : ""}
+                  </span>
+                  <span className="text-[11px] text-dark-400 hidden sm:inline">
+                    {new Date(b.createdAt).toLocaleString()}
+                  </span>
                 </div>
-              </button>
+                
+                <div className="flex items-center gap-2">
+                   <button
+                    onClick={(e) => {
+                       e.stopPropagation();
+                       if (confirm("Are you sure you want to delete this batch? This cannot be undone.")) {
+                           import("../lib/api").then(({ deleteBatch }) => {
+                               deleteBatch(b.batchId).then(() => {
+                                   fetchBatches();
+                               }).catch(err => {
+                                   console.error("Failed to delete", err);
+                                   alert("Failed to delete batch");
+                               });
+                           });
+                       }
+                    }}
+                    className="p-1.5 rounded-md hover:bg-red-500/10 text-slate-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Delete Job"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  <ChevronRight 
+                    className="w-4 h-4 text-dark-400 group-hover:text-slate-400 transition-colors shrink-0 cursor-pointer"
+                    onClick={() => fetchBatchDetail(b.batchId)} 
+                  />
+                </div>
+              </div>
             );
           })}
         </div>

@@ -15,6 +15,9 @@ import {
   X,
   Play,
   PackageOpen,
+  Menu,
+  RefreshCcw,
+  Image as ImageIcon,
 } from "lucide-react";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
@@ -111,8 +114,78 @@ export default function GalleryPage() {
     }
   };
 
+
+  const [detailsVideo, setDetailsVideo] = useState<Product | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [pollingJob, setPollingJob] = useState<{ batchId: string; productId: string } | null>(null);
+
+  // Poll for regeneration result
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (pollingJob) {
+      interval = setInterval(async () => {
+        try {
+          const { data } = await getBatchDetail(pollingJob.batchId);
+          // Assuming single product batch for regen
+          const product = data.products.find(p => p.productId === pollingJob.productId) || data.products[0];
+          
+          if (product) {
+            if (product.status === "COMPLETED") {
+              setPollingJob(null);
+              setIsRegenerating(false);
+              setDetailsVideo(product); // Switch modal to show new result
+              loadAllCompletedVideos(); // Refresh grid
+            } else if (product.status === "FAILED") {
+              setPollingJob(null);
+              setIsRegenerating(false);
+              alert(`Regeneration failed: ${product.error}`);
+            }
+          }
+        } catch (e) {
+          console.error("Polling error", e);
+        }
+      }, 3000);
+    }
+
+    return () => clearInterval(interval);
+  }, [pollingJob]);
+
+  const handleRegenerate = async (type: "video" | "both") => {
+    if (!detailsVideo) return;
+    
+    setIsRegenerating(true);
+    try {
+      const { data } = await import("../lib/api").then(m => m.startPipeline(
+        [{
+          productName: detailsVideo.productName,
+          imgUrl: detailsVideo.imgUrl,
+          category: detailsVideo.category,
+          price: detailsVideo.price,
+          // If regenerating video only, skip image gen and pass existing URL
+          skipImageGeneration: type === "video",
+          existingImageUrl: type === "video" ? detailsVideo.generatedImageUrl : undefined
+        }],
+        localStorage.getItem("tiktok-bof-fal-key") || "",
+        undefined, // prompts (could allow editing in future)
+        undefined,
+        undefined,
+        undefined
+      ));
+
+      // Start polling the new job. 
+      // The API returns batchId. We assume productId "product-0" for single item batches.
+      setPollingJob({ batchId: data.batchId, productId: "product-0" });
+      
+    } catch (err: any) {
+      console.error("Regeneration failed", err);
+      setIsRegenerating(false);
+      alert("Failed to start regeneration: " + (err.message || "Unknown error"));
+    }
+  };
+
   return (
-    <div className="max-w-6xl mx-auto animate-fade-in">
+    <div className="max-w-6xl mx-auto animate-fade-in pb-20">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -174,12 +247,12 @@ export default function GalleryPage() {
             return (
               <div
                 key={key}
-                className={`glass-card overflow-hidden group cursor-pointer transition-all duration-200 ${
+                className={`glass-card overflow-hidden group relative transition-all duration-200 ${
                   isSelected ? "ring-1 ring-accent ring-offset-1 ring-offset-dark-950" : ""
                 }`}
               >
                 <div
-                  className="relative aspect-[9/16] bg-dark-900 flex items-center justify-center"
+                  className="relative aspect-[9/16] bg-dark-900 flex items-center justify-center cursor-pointer"
                   onClick={() => setPreviewVideo(v)}
                 >
                   {v.generatedImageUrl ? (
@@ -192,24 +265,36 @@ export default function GalleryPage() {
                     <Film className="w-6 h-6 text-dark-500" />
                   )}
 
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center pointer-events-none">
                     <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center">
                       <Play className="w-4 h-4 text-white ml-0.5" />
                     </div>
                   </div>
 
+                  {/* Selection Checkbox */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleSelection(key);
                     }}
-                    className="absolute top-2 right-2 p-1 rounded-md bg-black/60 backdrop-blur-sm hover:bg-black/80 transition-colors"
+                    className="absolute top-2 right-2 p-1 rounded-md bg-black/60 backdrop-blur-sm hover:bg-black/80 transition-colors z-10"
                   >
                     {isSelected ? (
                       <CheckSquare className="w-3.5 h-3.5 text-accent" />
                     ) : (
                       <Square className="w-3.5 h-3.5 text-slate-400" />
                     )}
+                  </button>
+                    
+                  {/* Hamburger Menu Trigger */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDetailsVideo(v);
+                    }}
+                    className="absolute top-2 left-2 p-1 rounded-md bg-black/60 backdrop-blur-sm hover:bg-black/80 transition-colors z-10 opacity-0 group-hover:opacity-100"
+                  >
+                    <Menu className="w-3.5 h-3.5 text-white" />
                   </button>
                 </div>
 
@@ -227,7 +312,7 @@ export default function GalleryPage() {
         </div>
       )}
 
-      {/* Preview Modal — portaled to body so scroll position doesn't affect centering */}
+      {/* Preview Modal */}
       {previewVideo &&
         createPortal(
           <div
@@ -259,6 +344,108 @@ export default function GalleryPage() {
                     Video not available
                   </div>
                 )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Details/Regeneration Modal */}
+      {detailsVideo &&
+        createPortal(
+          <div
+            className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-6"
+            onClick={() => !isRegenerating && setDetailsVideo(null)}
+          >
+            <div
+              className="glass-card max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-fade-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-4 border-b border-dark-700 shrink-0">
+                <h3 className="text-white font-semibold">Video Details</h3>
+                {!isRegenerating && (
+                  <button onClick={() => setDetailsVideo(null)}>
+                    <X className="w-5 h-5 text-slate-500 hover:text-white transition-colors" />
+                  </button>
+                )}
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Column 1: Metadata */}
+                  <div className="space-y-4">
+                     <div>
+                        <label className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Product Name</label>
+                        <p className="text-white text-sm mt-1">{detailsVideo.productName}</p>
+                     </div>
+                     <div>
+                        <label className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Category</label>
+                        <p className="text-slate-300 text-sm mt-1">{detailsVideo.category}</p>
+                     </div>
+                     <div>
+                        <label className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Price</label>
+                        <p className="text-slate-300 text-sm mt-1">{detailsVideo.price}</p>
+                     </div>
+                     <div className="pt-4 space-y-2">
+                        <button 
+                            onClick={() => handleRegenerate("video")}
+                            disabled={isRegenerating}
+                            className="w-full btn-secondary py-2 flex items-center justify-center gap-2 text-xs"
+                        >
+                            {isRegenerating && pollingJob ? <Loader2 className="w-3 h-3 animate-spin"/> : <RefreshCcw className="w-3 h-3"/>}
+                            Regenerate Video (Keep Image)
+                        </button>
+                        <button 
+                            onClick={() => handleRegenerate("both")}
+                            disabled={isRegenerating}
+                            className="w-full btn-secondary py-2 flex items-center justify-center gap-2 text-xs"
+                        >
+                            {isRegenerating && pollingJob ? <Loader2 className="w-3 h-3 animate-spin"/> : <ImageIcon className="w-3 h-3"/>}
+                            Regenerate Picture & Video
+                        </button>
+                     </div>
+                  </div>
+
+                  {/* Column 2: Image */}
+                  <div className="flex flex-col">
+                    <label className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Generated Image</label>
+                    <div className="bg-dark-900 rounded-lg overflow-hidden border border-dark-700 aspect-[9/16] relative flex items-center justify-center">
+                        {detailsVideo.generatedImageUrl ? (
+                            <img src={detailsVideo.generatedImageUrl} className="w-full h-full object-contain" alt="Generated" />
+                        ) : (
+                            <span className="text-slate-600 text-xs">No image</span>
+                        )}
+                    </div>
+                  </div>
+
+                  {/* Column 3: Video */}
+                  <div className="flex flex-col">
+                    <label className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Generated Video</label>
+                    <div className="bg-dark-900 rounded-lg overflow-hidden border border-dark-700 aspect-[9/16] relative flex items-center justify-center">
+                        {isRegenerating ? (
+                            <div className="text-center p-4">
+                                <Loader2 className="w-8 h-8 text-accent animate-spin mx-auto mb-2"/>
+                                <p className="text-white text-sm font-medium">Generating new version...</p>
+                                <p className="text-slate-500 text-xs mt-1">This may take a minute</p>
+                            </div>
+                        ) : detailsVideo.videoUrl ? (
+                            <video src={detailsVideo.videoUrl} controls className="w-full h-full object-contain" />
+                        ) : (
+                            <span className="text-slate-600 text-xs">No video</span>
+                        )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* JSON Data Toggle (Optional, maybe for debug) */}
+                <div className="mt-8 pt-6 border-t border-dark-700">
+                    <details>
+                        <summary className="text-xs text-slate-500 cursor-pointer hover:text-white transition-colors">Show Raw Data</summary>
+                        <pre className="mt-2 p-3 bg-dark-950 rounded-md text-[10px] text-slate-400 overflow-auto max-h-40">
+                            {JSON.stringify(detailsVideo, null, 2)}
+                        </pre>
+                    </details>
+                </div>
               </div>
             </div>
           </div>,

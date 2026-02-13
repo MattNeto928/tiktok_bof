@@ -1,41 +1,66 @@
 import { useState } from "react";
-import { useAppContext } from "../lib/store";
-import { Settings, Key, Globe, Save, CheckCircle } from "lucide-react";
+import {
+  useAppContext,
+  DEFAULT_IMAGE_PROMPT,
+  DEFAULT_VIDEO_PROMPT,
+  DEFAULT_IMAGE_MODEL,
+  DEFAULT_VIDEO_MODEL,
+  IMAGE_MODEL_OPTIONS,
+  VIDEO_MODEL_OPTIONS,
+} from "../lib/store";
+import { Key, Save, CheckCircle, MessageSquare, RotateCcw, Cpu } from "lucide-react";
 
 export default function SettingsPage() {
-  const { falApiKey, setFalApiKey, geminiApiKey, setGeminiApiKey, apiUrl, setApiUrl } =
-    useAppContext();
+  const {
+    falApiKey, setFalApiKey,
+    imagePrompt, setImagePrompt,
+    videoPrompt, setVideoPrompt,
+    imageModel, setImageModel,
+    videoModel, setVideoModel,
+  } = useAppContext();
 
   const [localFalKey, setLocalFalKey] = useState(falApiKey);
-  const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey);
-  const [localApiUrl, setLocalApiUrl] = useState(apiUrl);
+  const [localImagePrompt, setLocalImagePrompt] = useState(imagePrompt);
+  const [localVideoPrompt, setLocalVideoPrompt] = useState(videoPrompt);
+  const [localImageModel, setLocalImageModel] = useState(imageModel);
+  const [localVideoModel, setLocalVideoModel] = useState(videoModel);
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
     setFalApiKey(localFalKey);
-    setGeminiApiKey(localGeminiKey);
-    setApiUrl(localApiUrl);
+    setImagePrompt(localImagePrompt);
+    setVideoPrompt(localVideoPrompt);
+    setImageModel(localImageModel);
+    setVideoModel(localVideoModel);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const resetPrompts = () => {
+    setLocalImagePrompt(DEFAULT_IMAGE_PROMPT);
+    setLocalVideoPrompt(DEFAULT_VIDEO_PROMPT);
+  };
+
+  const resetModels = () => {
+    setLocalImageModel(DEFAULT_IMAGE_MODEL);
+    setLocalVideoModel(DEFAULT_VIDEO_MODEL);
+  };
+
+  const selectedImageLabel = IMAGE_MODEL_OPTIONS.find((o) => o.value === localImageModel)?.label || localImageModel;
+  const selectedVideoLabel = VIDEO_MODEL_OPTIONS.find((o) => o.value === localVideoModel)?.label || localVideoModel;
+
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20">
-          <Settings className="w-6 h-6 text-indigo-400" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-white">Settings</h1>
-          <p className="text-sm text-slate-400">Configure your API keys and backend URL</p>
-        </div>
+    <div className="max-w-xl mx-auto animate-fade-in">
+      <div className="mb-8">
+        <h1 className="text-xl font-bold text-white">Settings</h1>
+        <p className="text-sm text-slate-500 mt-1">API keys, models, and generation prompts</p>
       </div>
 
-      <div className="glass-card p-6 space-y-6">
+      <div className="space-y-5">
         {/* fal.ai API Key */}
-        <div>
-          <label className="flex items-center gap-2 text-sm font-semibold text-slate-300 mb-2">
-            <Key className="w-4 h-4 text-indigo-400" />
+        <div className="glass-card p-5">
+          <label className="flex items-center gap-2 text-sm font-semibold text-slate-300 mb-3">
+            <Key className="w-4 h-4 text-accent" />
             fal.ai API Key
           </label>
           <input
@@ -45,45 +70,109 @@ export default function SettingsPage() {
             value={localFalKey}
             onChange={(e) => setLocalFalKey(e.target.value)}
           />
-          <p className="text-xs text-slate-500 mt-1.5">
-            Used for Nano Banana (image gen) and Grok Imagine Video (video gen)
+          <p className="text-xs text-slate-500 mt-2">
+            Used for {selectedImageLabel} (images) and {selectedVideoLabel} (video)
           </p>
         </div>
 
-        {/* Gemini API Key */}
-        <div>
-          <label className="flex items-center gap-2 text-sm font-semibold text-slate-300 mb-2">
-            <Key className="w-4 h-4 text-purple-400" />
-            Gemini API Key
-          </label>
-          <input
-            type="password"
-            className="input-field"
-            placeholder="Enter your Gemini API key..."
-            value={localGeminiKey}
-            onChange={(e) => setLocalGeminiKey(e.target.value)}
-          />
-          <p className="text-xs text-slate-500 mt-1.5">
-            Reserved for future use (prompt enhancement, etc.)
-          </p>
+        {/* Model Selection */}
+        <div className="glass-card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
+              <Cpu className="w-4 h-4 text-accent" />
+              Model Selection
+            </label>
+            <button
+              onClick={resetModels}
+              className="flex items-center gap-1 text-xs text-slate-500 hover:text-white transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Reset to Defaults
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs text-slate-400 mb-1.5 block">Image Model</label>
+              <select
+                className="input-field"
+                value={localImageModel}
+                onChange={(e) => setLocalImageModel(e.target.value)}
+              >
+                {IMAGE_MODEL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-500 mt-1.5">
+                Model used for product image generation
+              </p>
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-400 mb-1.5 block">Video Model</label>
+              <select
+                className="input-field"
+                value={localVideoModel}
+                onChange={(e) => setLocalVideoModel(e.target.value)}
+              >
+                {VIDEO_MODEL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-500 mt-1.5">
+                Model used for image-to-video generation
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Backend URL */}
-        <div>
-          <label className="flex items-center gap-2 text-sm font-semibold text-slate-300 mb-2">
-            <Globe className="w-4 h-4 text-cyan-400" />
-            Backend API URL
-          </label>
-          <input
-            type="text"
-            className="input-field"
-            placeholder="https://your-api-id.execute-api.us-east-1.amazonaws.com"
-            value={localApiUrl}
-            onChange={(e) => setLocalApiUrl(e.target.value)}
-          />
-          <p className="text-xs text-slate-500 mt-1.5">
-            API Gateway endpoint from CDK deploy output
-          </p>
+        {/* Generation Prompts */}
+        <div className="glass-card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
+              <MessageSquare className="w-4 h-4 text-accent" />
+              Generation Prompts
+            </label>
+            <button
+              onClick={resetPrompts}
+              className="flex items-center gap-1 text-xs text-slate-500 hover:text-white transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Reset to Defaults
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs text-slate-400 mb-1.5 block">Image Prompt</label>
+              <textarea
+                className="input-field min-h-[80px] resize-y"
+                placeholder="Enter image generation prompt..."
+                value={localImagePrompt}
+                onChange={(e) => setLocalImagePrompt(e.target.value)}
+              />
+              <p className="text-xs text-slate-500 mt-1.5">
+                Sent to {selectedImageLabel} for product image generation
+              </p>
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-400 mb-1.5 block">Video Prompt</label>
+              <textarea
+                className="input-field min-h-[60px] resize-y"
+                placeholder="Enter video generation prompt..."
+                value={localVideoPrompt}
+                onChange={(e) => setLocalVideoPrompt(e.target.value)}
+              />
+              <p className="text-xs text-slate-500 mt-1.5">
+                Sent to {selectedVideoLabel} for video generation
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Save Button */}

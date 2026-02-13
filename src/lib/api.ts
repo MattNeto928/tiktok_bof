@@ -1,14 +1,13 @@
 import axios from "axios";
 
-const getApiUrl = () =>
-  localStorage.getItem("tiktok-bof-api-url") || "http://localhost:3001";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 const getFalKey = () => localStorage.getItem("tiktok-bof-fal-key") || "";
 
 const api = axios.create();
 
 api.interceptors.request.use((config) => {
-  config.baseURL = getApiUrl();
+  config.baseURL = API_URL;
   config.headers["X-Fal-Key"] = getFalKey();
   return config;
 });
@@ -45,25 +44,22 @@ export interface BatchDetail {
   statusCounts: Record<string, number>;
 }
 
-// Upload URL
-export const getUploadUrl = () =>
-  api.post<{ uploadUrl: string; s3Key: string }>("/upload-url");
-
-// Upload XLSX to presigned URL
-export const uploadXlsxToS3 = (url: string, file: File) =>
-  axios.put(url, file, {
-    headers: {
-      "Content-Type":
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    },
-  });
-
-// Start pipeline
-export const startPipeline = (s3Key: string, falApiKey: string, limit?: number) =>
+// Start pipeline with product data directly
+export const startPipeline = (
+  products: Array<{ productName: string; imgUrl: string; category: string; price: string }>,
+  falApiKey: string,
+  imagePrompt?: string,
+  videoPrompt?: string,
+  imageModel?: string,
+  videoModel?: string
+) =>
   api.post<{ batchId: string; totalProducts: number }>("/upload", {
-    s3Key,
+    products,
     falApiKey,
-    limit,
+    imagePrompt,
+    videoPrompt,
+    imageModel,
+    videoModel,
   });
 
 // List batches
@@ -92,5 +88,9 @@ export const getDownloadUrls = (
       s3Key: string;
     }>;
   }>("/videos/download-urls", { items });
+
+// Cancel batch
+export const cancelBatch = (batchId: string) =>
+  api.post<{ message: string; stoppedCount: number }>(`/batches/${batchId}/cancel`);
 
 export default api;

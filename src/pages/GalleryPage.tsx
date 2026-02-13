@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   listBatches,
   getBatchDetail,
@@ -80,10 +81,8 @@ export default function GalleryPage() {
       const { data } = await getDownloadUrls(items);
 
       if (data.urls.length === 1) {
-        // Single file, just open it
         window.open(data.urls[0].downloadUrl, "_blank");
       } else {
-        // Multiple files, create ZIP
         const zip = new JSZip();
 
         for (const item of data.urls) {
@@ -91,8 +90,7 @@ export default function GalleryPage() {
             const res = await fetch(item.downloadUrl);
             const blob = await res.blob();
             const video = videos.find(
-              (v) =>
-                v.batchId === item.batchId && v.productId === item.productId
+              (v) => v.batchId === item.batchId && v.productId === item.productId
             );
             const name = video
               ? `${video.productName.replace(/[^a-zA-Z0-9]/g, "_")}.mp4`
@@ -114,71 +112,61 @@ export default function GalleryPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-gradient-to-br from-pink-500/20 to-rose-500/20">
-            <Film className="w-6 h-6 text-pink-400" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Video Gallery</h1>
-            <p className="text-sm text-slate-400">
-              {videos.length} completed videos
-            </p>
-          </div>
+        <div>
+          <h1 className="text-xl font-bold text-white">Gallery</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            {videos.length} completed video{videos.length !== 1 ? "s" : ""}
+          </p>
         </div>
 
         {videos.length > 0 && (
-          <div className="flex items-center gap-3">
-            <button onClick={selectAll} className="btn-secondary flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <button onClick={selectAll} className="btn-secondary flex items-center gap-2 text-xs py-2 px-3">
               {selected.size === videos.length ? (
-                <CheckSquare className="w-4 h-4" />
+                <CheckSquare className="w-3.5 h-3.5" />
               ) : (
-                <Square className="w-4 h-4" />
+                <Square className="w-3.5 h-3.5" />
               )}
-              {selected.size === videos.length ? "Deselect All" : "Select All"}
+              {selected.size === videos.length ? "Deselect" : "Select All"}
             </button>
             <button
               onClick={downloadSelected}
               disabled={selected.size === 0 || downloading}
-              className="btn-primary flex items-center gap-2"
+              className="btn-primary flex items-center gap-2 text-xs py-2 px-3"
             >
               {downloading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                <Download className="w-4 h-4" />
+                <Download className="w-3.5 h-3.5" />
               )}
-              Download {selected.size > 0 ? `(${selected.size})` : ""}
+              {selected.size > 0 ? `Download (${selected.size})` : "Download"}
             </button>
           </div>
         )}
       </div>
 
-      {/* Loading */}
       {loading && (
-        <div className="glass-card p-12 text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-400 mx-auto mb-3" />
-          <p className="text-slate-400">Loading videos...</p>
+        <div className="glass-card p-14 text-center">
+          <Loader2 className="w-6 h-6 animate-spin text-slate-500 mx-auto mb-3" />
+          <p className="text-slate-500 text-sm">Loading videos...</p>
         </div>
       )}
 
-      {/* Empty State */}
       {!loading && videos.length === 0 && (
-        <div className="glass-card p-12 text-center">
-          <PackageOpen className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h2 className="text-lg font-semibold text-slate-300 mb-1">
-            No videos yet
-          </h2>
-          <p className="text-sm text-slate-500">
-            Videos will appear here after the pipeline completes processing.
+        <div className="glass-card p-14 text-center">
+          <PackageOpen className="w-8 h-8 text-dark-400 mx-auto mb-3" />
+          <h2 className="text-sm font-semibold text-slate-400 mb-1">No videos yet</h2>
+          <p className="text-xs text-slate-500">
+            Videos appear here after pipeline processing completes.
           </p>
         </div>
       )}
 
-      {/* Video Grid */}
       {!loading && videos.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 stagger-children">
           {videos.map((v) => {
             const key = `${v.batchId}/${v.productId}`;
             const isSelected = selected.has(key);
@@ -187,12 +175,11 @@ export default function GalleryPage() {
               <div
                 key={key}
                 className={`glass-card overflow-hidden group cursor-pointer transition-all duration-200 ${
-                  isSelected ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-dark-900" : ""
+                  isSelected ? "ring-1 ring-accent ring-offset-1 ring-offset-dark-950" : ""
                 }`}
               >
-                {/* Video thumbnail / preview area */}
                 <div
-                  className="relative aspect-[9/16] bg-dark-700 flex items-center justify-center"
+                  className="relative aspect-[9/16] bg-dark-900 flex items-center justify-center"
                   onClick={() => setPreviewVideo(v)}
                 >
                   {v.generatedImageUrl ? (
@@ -202,41 +189,36 @@ export default function GalleryPage() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <Film className="w-8 h-8 text-slate-600" />
+                    <Film className="w-6 h-6 text-dark-500" />
                   )}
 
-                  {/* Play overlay */}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                      <Play className="w-5 h-5 text-white ml-0.5" />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center">
+                      <Play className="w-4 h-4 text-white ml-0.5" />
                     </div>
                   </div>
 
-                  {/* Selection checkbox */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleSelection(key);
                     }}
-                    className="absolute top-2 right-2 p-1 rounded-md bg-dark-800/80 backdrop-blur-sm hover:bg-dark-700 transition-colors"
+                    className="absolute top-2 right-2 p-1 rounded-md bg-black/60 backdrop-blur-sm hover:bg-black/80 transition-colors"
                   >
                     {isSelected ? (
-                      <CheckSquare className="w-4 h-4 text-indigo-400" />
+                      <CheckSquare className="w-3.5 h-3.5 text-accent" />
                     ) : (
-                      <Square className="w-4 h-4 text-slate-400" />
+                      <Square className="w-3.5 h-3.5 text-slate-400" />
                     )}
                   </button>
                 </div>
 
-                {/* Product info */}
                 <div className="p-3">
-                  <p className="text-sm text-white font-medium truncate">
+                  <p className="text-xs text-slate-300 font-medium truncate">
                     {v.productName}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {v.completedAt
-                      ? new Date(v.completedAt).toLocaleDateString()
-                      : ""}
+                  <p className="text-[10px] text-dark-400 mt-1">
+                    {v.completedAt ? new Date(v.completedAt).toLocaleDateString() : ""}
                   </p>
                 </div>
               </div>
@@ -245,41 +227,43 @@ export default function GalleryPage() {
         </div>
       )}
 
-      {/* Video Preview Modal */}
-      {previewVideo && (
-        <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-6"
-          onClick={() => setPreviewVideo(null)}
-        >
+      {/* Preview Modal — portaled to body so scroll position doesn't affect centering */}
+      {previewVideo &&
+        createPortal(
           <div
-            className="glass-card max-w-md w-full overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-6"
+            onClick={() => setPreviewVideo(null)}
           >
-            <div className="flex items-center justify-between p-4 border-b border-dark-600">
-              <p className="text-white font-semibold truncate pr-4">
-                {previewVideo.productName}
-              </p>
-              <button onClick={() => setPreviewVideo(null)}>
-                <X className="w-5 h-5 text-slate-400 hover:text-white transition-colors" />
-              </button>
+            <div
+              className="glass-card max-w-sm w-full max-h-full flex flex-col overflow-hidden animate-fade-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-4 border-b border-dark-700 shrink-0">
+                <p className="text-white text-sm font-semibold truncate pr-4">
+                  {previewVideo.productName}
+                </p>
+                <button onClick={() => setPreviewVideo(null)}>
+                  <X className="w-4 h-4 text-slate-500 hover:text-white transition-colors" />
+                </button>
+              </div>
+              <div className="bg-black min-h-0 flex-1">
+                {previewVideo.videoUrl ? (
+                  <video
+                    src={previewVideo.videoUrl}
+                    controls
+                    autoPlay
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-dark-400 text-sm">
+                    Video not available
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="aspect-[9/16] bg-black">
-              {previewVideo.videoUrl ? (
-                <video
-                  src={previewVideo.videoUrl}
-                  controls
-                  autoPlay
-                  className="w-full h-full object-contain"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-500">
-                  Video not available
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

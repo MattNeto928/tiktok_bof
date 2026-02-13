@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useAppContext } from "../lib/store";
+import { useNavigate } from "react-router-dom";
+import { useAppContext, MODEL_PRICING } from "../lib/store";
 import { startPipeline } from "../lib/api";
 import {
   FileSpreadsheet,
@@ -13,6 +14,12 @@ import {
   Square,
   Clock,
   Trash2,
+  Copy,
+  Check,
+  Eye,
+  DollarSign,
+  ArrowRight,
+  Link,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -21,6 +28,7 @@ interface ParsedProduct {
   imgUrl: string;
   category: string;
   price: string;
+  tiktokUrl: string;
 }
 
 interface SavedUpload {
@@ -47,7 +55,8 @@ function removeSavedUpload(id: string) {
 }
 
 export default function UploadPage() {
-  const { falApiKey, imagePrompt, videoPrompt, imageModel, videoModel } = useAppContext();
+  const navigate = useNavigate();
+  const { falApiKey, imagePrompt, videoPrompt, imageModel, videoModel, imageReviewMode } = useAppContext();
   const [products, setProducts] = useState<ParsedProduct[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set());
   const [isDragging, setIsDragging] = useState(false);
@@ -60,6 +69,8 @@ export default function UploadPage() {
   const [savedUploads, setSavedUploads] = useState<SavedUpload[]>(loadSavedUploads());
   const [activeUploadId, setActiveUploadId] = useState<string | null>(null);
   const [activeFileName, setActiveFileName] = useState<string | null>(null);
+  const [copiedLinks, setCopiedLinks] = useState(false);
+  const [copiedRow, setCopiedRow] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -113,6 +124,7 @@ export default function UploadPage() {
             imgUrl: String(r["img_url"]),
             category: String(r["Category"] || ""),
             price: String(r["Price($)"] || r["Avg. Unit Price($)"] || ""),
+            tiktokUrl: String(r["TikTokUrl"] || r["tiktokUrl"] || r["tiktok_url"] || ""),
           }));
 
         loadProducts(parsed, f.name);
@@ -172,6 +184,16 @@ export default function UploadPage() {
     }
   };
 
+  const handleCopyTikTokLinks = async () => {
+    const links = products
+      .filter((p) => p.tiktokUrl && p.tiktokUrl !== "undefined")
+      .map((p) => p.tiktokUrl);
+    if (links.length === 0) return;
+    await navigator.clipboard.writeText(links.join("\n"));
+    setCopiedLinks(true);
+    setTimeout(() => setCopiedLinks(false), 2000);
+  };
+
   const handleStartPipeline = async () => {
     if (selectedProducts.size === 0 || !falApiKey) return;
     setIsUploading(true);
@@ -179,7 +201,15 @@ export default function UploadPage() {
 
     try {
       const selectedData = Array.from(selectedProducts).map((i) => products[i]);
-      const { data: pipelineData } = await startPipeline(selectedData, falApiKey, imagePrompt, videoPrompt, imageModel, videoModel);
+      const { data: pipelineData } = await startPipeline(
+        selectedData,
+        falApiKey,
+        imagePrompt,
+        videoPrompt,
+        imageModel,
+        videoModel,
+        imageReviewMode
+      );
       setResult(pipelineData);
     } catch (err: any) {
       setError(err.response?.data?.error || err.message);
@@ -197,6 +227,16 @@ export default function UploadPage() {
     setActiveFileName(null);
   };
 
+  // Pricing calculations
+  const imgPrice = MODEL_PRICING[imageModel];
+  const vidPrice = MODEL_PRICING[videoModel];
+  const selectedCount = selectedProducts.size;
+  const imgCost = imgPrice ? selectedCount * imgPrice.costPerUnit : 0;
+  const vidCost = vidPrice ? selectedCount * vidPrice.costPerUnit : 0;
+  const totalCost = imgCost + vidCost;
+
+  const tiktokLinks = products.filter((p) => p.tiktokUrl && p.tiktokUrl !== "undefined");
+
   return (
     <div className="max-w-5xl mx-auto animate-fade-in">
       <div className="mb-8">
@@ -212,16 +252,30 @@ export default function UploadPage() {
           <div className="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-5">
             <CheckCircle className="w-7 h-7 text-accent" />
           </div>
-          <h2 className="text-lg font-bold text-white mb-2">Pipeline Started</h2>
+          <h2 className="text-lg font-bold text-white mb-2">
+            {imageReviewMode ? "Image Generation Started" : "Pipeline Started"}
+          </h2>
           <p className="text-slate-500 text-sm mb-1">
             Batch <code className="text-accent text-xs font-mono">{result.batchId.slice(0, 8)}...</code>
           </p>
           <p className="text-slate-400 text-sm mb-6">
-            Processing {result.totalProducts} product{result.totalProducts !== 1 ? "s" : ""}
+            {imageReviewMode
+              ? `Generating images for ${result.totalProducts} product${result.totalProducts !== 1 ? "s" : ""} — review them on the Dashboard when ready`
+              : `Processing ${result.totalProducts} product${result.totalProducts !== 1 ? "s" : ""}`
+            }
           </p>
-          <button onClick={resetUpload} className="btn-secondary">
-            Upload Another
-          </button>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="btn-primary flex items-center gap-2"
+            >
+              View in Dashboard
+              <ArrowRight className="w-4 h-4" />
+            </button>
+            <button onClick={resetUpload} className="btn-secondary">
+              Upload Another
+            </button>
+          </div>
         </div>
       )}
 
@@ -314,12 +368,33 @@ export default function UploadPage() {
                     </span>
                     <span className="badge badge-completed">{products.length} products</span>
                   </div>
-                  <button
-                    onClick={resetUpload}
-                    className="p-2 rounded-lg hover:bg-dark-700 transition-colors"
-                  >
-                    <X className="w-4 h-4 text-slate-500" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Copy TikTok Links button */}
+                    {tiktokLinks.length > 0 && (
+                      <button
+                        onClick={handleCopyTikTokLinks}
+                        className="btn-secondary flex items-center gap-1.5 text-xs py-1.5 px-3"
+                      >
+                        {copiedLinks ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            <span className="text-emerald-400">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            Copy TikTok Links ({tiktokLinks.length})
+                          </>
+                        )}
+                      </button>
+                    )}
+                    <button
+                      onClick={resetUpload}
+                      className="p-2 rounded-lg hover:bg-dark-700 transition-colors"
+                    >
+                      <X className="w-4 h-4 text-slate-500" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Product selection table */}
@@ -349,6 +424,7 @@ export default function UploadPage() {
                           <th className="p-3">Name</th>
                           <th className="p-3 w-32">Category</th>
                           <th className="p-3 w-20">Price</th>
+                          {tiktokLinks.length > 0 && <th className="p-3 w-12 text-center">Link</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-dark-700">
@@ -390,8 +466,32 @@ export default function UploadPage() {
                               <td className="p-3 text-slate-300 text-sm">{p.productName}</td>
                               <td className="p-3 text-slate-500 text-xs">{p.category}</td>
                               <td className="p-3 text-slate-300 text-sm">
-                                {p.price ? `$${p.price}` : "—"}
+                                {p.price ? `$${p.price}` : "\u2014"}
                               </td>
+                              {tiktokLinks.length > 0 && (
+                                <td className="p-3 text-center">
+                                  {p.tiktokUrl && p.tiktokUrl !== "undefined" ? (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigator.clipboard.writeText(p.tiktokUrl);
+                                        setCopiedRow(i);
+                                        setTimeout(() => setCopiedRow(null), 1500);
+                                      }}
+                                      className="p-1 rounded hover:bg-dark-600 transition-colors"
+                                      title={p.tiktokUrl}
+                                    >
+                                      {copiedRow === i ? (
+                                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      ) : (
+                                        <Link className="w-3.5 h-3.5 text-slate-500 hover:text-accent" />
+                                      )}
+                                    </button>
+                                  ) : (
+                                    <span className="text-dark-500">{"\u2014"}</span>
+                                  )}
+                                </td>
+                              )}
                             </tr>
                           );
                         })}
@@ -399,6 +499,33 @@ export default function UploadPage() {
                     </table>
                   </div>
                 </div>
+
+                {/* Pricing Estimation */}
+                {selectedCount > 0 && (imgPrice || vidPrice) && (
+                  <div className="glass-card p-3 flex items-center gap-3">
+                    <DollarSign className="w-4 h-4 text-accent shrink-0" />
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                      <span>Estimated cost:</span>
+                      {imgPrice && (
+                        <span>
+                          {selectedCount} img × ${imgPrice.costPerUnit.toFixed(3)} = ${imgCost.toFixed(2)}
+                        </span>
+                      )}
+                      {imgPrice && vidPrice && !imageReviewMode && <span className="text-dark-500">+</span>}
+                      {vidPrice && !imageReviewMode && (
+                        <span>
+                          {selectedCount} vid × ${vidPrice.costPerUnit.toFixed(2)} = ${vidCost.toFixed(2)}
+                        </span>
+                      )}
+                      <span className="text-accent font-semibold">
+                        = ${imageReviewMode ? imgCost.toFixed(2) : totalCost.toFixed(2)}
+                      </span>
+                      {imageReviewMode && (
+                        <span className="text-sky-400 text-[11px]">(images only — video cost after review)</span>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {error && (
                   <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/5 border border-red-500/10 rounded-lg p-3">
@@ -411,6 +538,14 @@ export default function UploadPage() {
                   <div className="flex items-center gap-2 text-warning text-sm bg-warning/5 border border-warning/10 rounded-lg p-3">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     Set your fal.ai API key in Settings first.
+                  </div>
+                )}
+
+                {/* Image review mode indicator */}
+                {imageReviewMode && (
+                  <div className="flex items-center gap-2 text-sky-400 text-xs bg-sky-500/5 border border-sky-500/10 rounded-lg p-3">
+                    <Eye className="w-3.5 h-3.5 shrink-0" />
+                    Image review mode is ON — images will be generated first for your review on the Dashboard.
                   </div>
                 )}
 
@@ -429,6 +564,8 @@ export default function UploadPage() {
                       <Play className="w-4 h-4" />
                       {selectedProducts.size === 0
                         ? "Select products to start"
+                        : imageReviewMode
+                        ? `Generate Images for Review (${selectedProducts.size} product${selectedProducts.size !== 1 ? "s" : ""})`
                         : `Start Pipeline (${selectedProducts.size} product${selectedProducts.size !== 1 ? "s" : ""})`
                       }
                     </>

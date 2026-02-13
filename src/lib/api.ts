@@ -19,6 +19,9 @@ export interface Batch {
   totalProducts: number;
   status: string;
   createdAt: string;
+  imageOnly?: boolean;
+  imageModel?: string;
+  videoModel?: string;
 }
 
 export interface Product {
@@ -49,10 +52,10 @@ export interface BatchDetail {
 
 // Start pipeline with product data directly
 export const startPipeline = (
-  products: Array<{ 
-    productName: string; 
-    imgUrl: string; 
-    category: string; 
+  products: Array<{
+    productName: string;
+    imgUrl: string;
+    category: string;
     price: string;
     skipImageGeneration?: boolean;
     existingImageUrl?: string;
@@ -61,7 +64,8 @@ export const startPipeline = (
   imagePrompt?: string,
   videoPrompt?: string,
   imageModel?: string,
-  videoModel?: string
+  videoModel?: string,
+  imageOnly?: boolean
 ) =>
   api.post<{ batchId: string; totalProducts: number }>("/upload", {
     products,
@@ -70,6 +74,7 @@ export const startPipeline = (
     videoPrompt,
     imageModel,
     videoModel,
+    ...(imageOnly && { imageOnly: true }),
   });
 
 // List batches
@@ -102,6 +107,13 @@ export const getDownloadUrls = (
 // Cancel batch
 export const cancelBatch = (batchId: string) =>
   api.post<{ message: string; stoppedCount: number }>(`/batches/${batchId}/cancel`);
+
+// Review batch — mark products as REVIEWED or REJECTED
+export const reviewBatch = (
+  batchId: string,
+  decisions: Record<string, "approved" | "rejected">
+) =>
+  api.post<{ message: string; updated: number }>(`/batches/${batchId}/review`, { decisions });
 
 // Delete batch
 export const deleteBatch = (batchId: string) =>

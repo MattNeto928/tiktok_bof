@@ -7,8 +7,9 @@ import {
   DEFAULT_VIDEO_MODEL,
   IMAGE_MODEL_OPTIONS,
   VIDEO_MODEL_OPTIONS,
+  MODEL_PRICING,
 } from "../lib/store";
-import { Key, Save, CheckCircle, MessageSquare, RotateCcw, Cpu } from "lucide-react";
+import { Key, Save, CheckCircle, MessageSquare, RotateCcw, Cpu, Eye } from "lucide-react";
 
 export default function SettingsPage() {
   const {
@@ -17,6 +18,7 @@ export default function SettingsPage() {
     videoPrompt, setVideoPrompt,
     imageModel, setImageModel,
     videoModel, setVideoModel,
+    imageReviewMode, setImageReviewMode,
   } = useAppContext();
 
   const [localFalKey, setLocalFalKey] = useState(falApiKey);
@@ -24,6 +26,7 @@ export default function SettingsPage() {
   const [localVideoPrompt, setLocalVideoPrompt] = useState(videoPrompt);
   const [localImageModel, setLocalImageModel] = useState(imageModel);
   const [localVideoModel, setLocalVideoModel] = useState(videoModel);
+  const [localImageReviewMode, setLocalImageReviewMode] = useState(imageReviewMode);
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
@@ -32,6 +35,7 @@ export default function SettingsPage() {
     setVideoPrompt(localVideoPrompt);
     setImageModel(localImageModel);
     setVideoModel(localVideoModel);
+    setImageReviewMode(localImageReviewMode);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -127,6 +131,53 @@ export default function SettingsPage() {
                 Model used for image-to-video generation
               </p>
             </div>
+          </div>
+
+          {/* Pricing info */}
+          {(() => {
+            const imgPrice = MODEL_PRICING[localImageModel];
+            const vidPrice = MODEL_PRICING[localVideoModel];
+            return (imgPrice || vidPrice) ? (
+              <div className="mt-4 pt-4 border-t border-dark-700">
+                <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">Cost per product</p>
+                <div className="flex gap-4 text-xs text-slate-400">
+                  {imgPrice && <span>${imgPrice.costPerUnit.toFixed(3)}/{imgPrice.unit}</span>}
+                  {vidPrice && <span>${vidPrice.costPerUnit.toFixed(2)}/{vidPrice.unit}</span>}
+                  {imgPrice && vidPrice && (
+                    <span className="text-accent font-medium">
+                      = ${(imgPrice.costPerUnit + vidPrice.costPerUnit).toFixed(2)} total
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : null;
+          })()}
+        </div>
+
+        {/* Image Review Mode */}
+        <div className="glass-card p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Eye className="w-4 h-4 text-accent" />
+              <div>
+                <p className="text-sm font-semibold text-slate-300">Review Images Before Video</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Generate images first, review and approve them, then generate videos only for approved images
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setLocalImageReviewMode(!localImageReviewMode)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                localImageReviewMode ? "bg-accent" : "bg-dark-600"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                  localImageReviewMode ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
           </div>
         </div>
 
